@@ -16,6 +16,7 @@ public class Main
 	}
 
 	String input = args[0];
+	//String input = "5_4_10.vrp";
 	Path path = Paths.get(input);
 	String filename = path.getFileName().toString();
 	System.out.println("Instance: " + input);
