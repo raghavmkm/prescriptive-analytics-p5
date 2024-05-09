@@ -17,7 +17,12 @@ public class VRPInstance
   
   //variables created by me
   double[][] distanceMatrix;
-  ArrayList<LinkedList<Integer>> routes;
+  ArrayList<LinkedList<Edge>> bestRoute;
+  double bestCost;
+  ArrayList<LinkedList<Edge>> routes;
+  double currCost;
+  int[] capacities;
+  LinkedList<Edge> edgeList;
 
 
   public VRPInstance(String fileName)
@@ -55,10 +60,28 @@ public class VRPInstance
 		  System.out.println(demandOfCustomer[i] + " " + xCoordOfCustomer[i] + " " + yCoordOfCustomer[i]);
     
     init();
-    initSolution();
+    init_greedy_solution();
+    // print_routes();;
+    // print_capacities();
+    System.out.println(get_cost());
+    simulatedAnnealing();
+    // print_routes();;
+    // print_capacities();
+    System.out.println(get_cost());
+  }
+
+  public double get_cost(){
+    double cost = 0;
+    for(int i = 0; i < numVehicles; i++){
+      for(Edge e : routes.get(i)){
+        cost += distanceMatrix[e.start][e.end];
+      }
+    }
+    return cost;
   }
 
   public void init(){
+    edgeList = new LinkedList<Edge>();
     distanceMatrix = new double[numCustomers][numCustomers];
     for(int i = 0; i < numCustomers; i++){
         for(int j = 0; j < numCustomers; j++){
@@ -69,8 +92,264 @@ public class VRPInstance
     }
     routes = new ArrayList<>(numVehicles);
     for(int i = 0; i < numVehicles; i++){
-      routes.add(new LinkedList<Integer>());
+      routes.add(new LinkedList<Edge>());
     }
+    capacities = new int[numVehicles];
+    for(int i = 0; i < numVehicles; i++){
+      capacities[i] = 0;
+    }
+  }
+
+  public void simulatedAnnealing(){
+    double temperature = currCost;
+    int iteration = 0;
+    //termination condition is number of iterations
+    while(iteration < 6400){
+      int[] neighbor = getNeighbour();
+      ArrayList<LinkedList<Edge>> neighborRoute = new ArrayList<>();
+      for(int i = 0; i < numVehicles; i++){
+        neighborRoute.add(new LinkedList<Edge>());
+        for(Edge e : routes.get(i)){
+          Edge newEdge = new Edge(e.start);
+          newEdge.setEnd(e.end);
+          neighborRoute.get(i).add(newEdge);
+        }
+      }
+      if(neighbor[4] == 1){
+        for(Edge e : neighborRoute.get(neighbor[0])){
+          if(e.end == neighbor[2]){
+            e.end = neighbor[3];
+          }
+          if(e.start == neighbor[2]){
+            e.start = neighbor[3];
+          }
+        }
+        for(Edge e : neighborRoute.get(neighbor[1])){
+          if(e.end == neighbor[3]){
+            e.end = neighbor[2];
+          }
+          if(e.start == neighbor[3]){
+            e.start = neighbor[2];
+          }
+        }
+      }
+      else if(neighbor[4] == 2){
+        LinkedList<Edge> v1 = neighborRoute.get(neighbor[0]);
+        for(int i = 0; i < v1.size(); i++){
+          if(v1.get(i).end == neighbor[2]){
+            int next = v1.get(i + 1).end;
+            v1.get(i).end = next;
+            v1.remove(i + 1);
+          }
+        }
+        LinkedList<Edge> v2 = neighborRoute.get(neighbor[1]);
+        for(int i = 0; i < v2.size(); i++){
+          if(v2.get(i).start == neighbor[3]){
+            int next = v2.get(i).end;
+            v2.get(i).end = neighbor[2];
+            Edge e = new Edge(neighbor[2]);
+            e.setEnd(next);
+            v2.add(i + 1, e);
+          }
+        }
+      }
+      else{
+        LinkedList<Edge> v1 = neighborRoute.get(neighbor[0]);
+        for(int i = 0; i < v1.size(); i++){
+          if(v1.get(i).end == neighbor[2]){
+            int next = v1.get(i + 1).end;
+            v1.get(i).end = next;
+            v1.remove(i + 1);
+          }
+        }
+        for(int i = 0; i < v1.size(); i++){
+          if(v1.get(i).start == neighbor[3]){
+            int next = v1.get(i).end;
+            v1.get(i).end = neighbor[2];
+            Edge e = new Edge(neighbor[2]);
+            e.setEnd(next);
+            v1.add(i + 1, e);
+          }
+        }
+      }
+      double neighborCost = 0;
+      for(int i = 0; i < numVehicles; i++){
+        for(Edge e : neighborRoute.get(i)){
+          neighborCost += distanceMatrix[e.start][e.end];
+        }
+      }
+      double delta = neighborCost - currCost;
+      if(delta < 0 || Math.random() < Math.exp((-1 * delta) / temperature)){
+        routes = neighborRoute;
+        currCost = neighborCost;
+        if(neighbor[4] == 1){
+          capacities[neighbor[0]] += demandOfCustomer[neighbor[3]] - demandOfCustomer[neighbor[2]];
+          capacities[neighbor[1]] += demandOfCustomer[neighbor[2]] - demandOfCustomer[neighbor[3]];
+        }
+        else if(neighbor[4] == 2){
+          capacities[neighbor[0]] -= demandOfCustomer[neighbor[2]];
+          capacities[neighbor[1]] += demandOfCustomer[neighbor[2]];
+        }
+      }
+
+      if(currCost < bestCost){
+        bestRoute = routes;
+        bestCost = currCost;
+      }
+      if(iteration % 8 == 0){
+        temperature = temperature * 0.99;
+      }
+      iteration++;
+    }
+  }
+
+  public int[] getNeighbour(){
+    int[] result = new int[5];
+    while(true){
+      int tmp = (int) (Math.random() * 3 + 1);
+      if(tmp == 1){
+        //swapping
+        int v1 = (int) (Math.random() * numVehicles + 0);
+        while(routes.get(v1).size() < 2){
+          v1 = (int) (Math.random() * numVehicles + 0);
+        }
+        int v2 = (int) (Math.random() * numVehicles + 0);
+        while(routes.get(v2).size() < 2){
+          v2 = (int) (Math.random() * numVehicles + 0);
+        }
+        while(v2 == v1){
+          v2 = (int) (Math.random() * numVehicles + 0);
+          while(routes.get(v2).size() < 2){
+            v2 = (int) (Math.random() * numVehicles + 0);
+          }
+        }
+        int r1 = routes.get(v1).size() - 1;
+        int r2 = routes.get(v2).size() - 1;
+        int i1 = (int) (Math.random() * r1 + 0);
+        int i2 = (int) (Math.random() * r2 + 0);
+        int c1 = routes.get(v1).get(i1).end;
+        int c2 = routes.get(v2).get(i2).end;
+        if((capacities[v1] - demandOfCustomer[c1] + demandOfCustomer[c2] <= vehicleCapacity) && capacities[v2] - demandOfCustomer[c2] + demandOfCustomer[c1] <= vehicleCapacity){
+          result[0] = v1;
+          result[1] = v2;
+          result[2] = c1;
+          result[3] = c2;
+          result[4] = 1;
+          return result;
+        }
+        else{
+          continue;
+        }
+      }
+      else if(tmp == 2){
+        //inserting and removing
+        int v1 = (int) (Math.random() * numVehicles + 0);
+        while(routes.get(v1).size() < 2){
+          v1 = (int) (Math.random() * numVehicles + 0);
+        }
+        int v2 = (int) (Math.random() * numVehicles + 0);
+        while(v2 == v1){
+          v2 = (int) (Math.random() * numVehicles + 0);
+        }
+        int r1 = routes.get(v1).size() - 1;
+        int r2 = routes.get(v2).size();
+        int i1 = (int) (Math.random() * r1 + 0);
+        int i2 = (int) (Math.random() * r2 + 0);
+        int c1 = routes.get(v1).get(i1).end;
+        int c2 = routes.get(v2).get(i2).start;
+        if(capacities[v2] + demandOfCustomer[c1] <= vehicleCapacity){
+          result[0] = v1;
+          result[1] = v2;
+          result[2] = c1;
+          result[3] = c2;
+          result[4] = 2;
+          return result;
+        }
+        else{
+          continue;
+        }
+      }
+      else{
+        //reorder
+        int v1 = (int) (Math.random() * numVehicles + 0);
+        if(routes.get(v1).size() < 4){
+          continue;
+        }
+        int r1 = routes.get(v1).size() - 1;
+        int i1 = (int) (Math.random() * r1 + 0);
+        int c1 = routes.get(v1).get(i1).end;
+        int c2 = routes.get(v1).get(i1).start;
+        int r2 = routes.get(v1).size();
+        int i2 = (int) (Math.random() * r2 + 0);
+        int pos = routes.get(v1).get(i2).start;
+        while(pos == c1 || pos == c2){
+          i2 = (int) (Math.random() * r2 + 0);
+          pos = routes.get(v1).get(i2).start;
+        } 
+        result[0] = v1;
+        result[1] = v1;
+        result[2] = c1;
+        result[3] = pos;
+        result[4] = 3;
+        return result;
+      }
+    }
+  }
+
+  public int get_highest_demand(HashSet<Integer> serviced){
+    int index = -1;
+    int maxVal = Integer.MIN_VALUE;
+    for(int i = 0; i < numCustomers; i++){
+      if(!serviced.contains(i)){
+        if(demandOfCustomer[i] > maxVal){
+          index = i;
+          maxVal = demandOfCustomer[i];
+        }
+      }
+    }
+    if(index != -1){
+      return index;
+    }
+    else{
+      System.out.println("Error in customer dispatch");
+      return -1;
+    }
+  }
+
+  public void init_greedy_solution(){
+    HashSet<Integer> serviced = new HashSet<>();
+    serviced.add(0);
+    for(int i = 0; i < numVehicles; i++){
+          Edge e = new Edge(0);
+          edgeList.add(e);
+          routes.get(i).add(e);
+        }
+    while(serviced.size() != numCustomers){
+      int currDemand = get_highest_demand(serviced);
+      int flag = 0;
+      for(int i = 0; i < numVehicles; i++){
+        if(capacities[i] + demandOfCustomer[currDemand] <= vehicleCapacity){
+          capacities[i] += demandOfCustomer[currDemand];
+          routes.get(i).getLast().setEnd(currDemand);
+          Edge e = new Edge(currDemand);
+          edgeList.add(e);
+          routes.get(i).add(e);
+          serviced.add(currDemand);
+          flag = 1;
+          break;
+        }
+      }
+      if(flag == 0){
+        System.out.println("INFEASIBLE");
+        return;
+      }
+    }
+    for(int i = 0; i < numVehicles; i++){
+      routes.get(i).getLast().setEnd(0);
+    }
+    bestRoute = routes;
+    currCost = get_cost();
+    bestCost = currCost;
   }
 
   public int getNearestUnvisited(int location, HashSet<Integer> visited){
@@ -88,7 +367,7 @@ public class VRPInstance
   }
 
 
-  public void initSolution(){
+  public void initSolutionOpt(){
     int totalDemand = 0;
     for(int i = 0; i < numCustomers; i++){
       totalDemand += demandOfCustomer[i];
@@ -98,17 +377,12 @@ public class VRPInstance
       System.out.println("DELIVERY NOT POSSIBLE!");
       return;
     }
-    System.out.println(numberDispatched);
-    int[] capacities = new int[numVehicles];
-    for(int i = 0; i < numVehicles; i++){
-      capacities[i] = 0;
-    }
     HashSet<Integer> visited = new HashSet<>();
     visited.add(0);
     HashSet<Integer> filled = new HashSet<>();
 
     for(int i = 0; i < numVehicles; i++){
-      routes.get(i).add(0);
+      routes.get(i).add(new Edge(0));
     }
 
     while(visited.size() != numCustomers){
@@ -117,13 +391,14 @@ public class VRPInstance
         if(filled.contains(i)){
           continue;
         }
-        int currLoc = routes.get(i).getLast();
+        int currLoc = routes.get(i).getLast().start;
         int nextLoc = getNearestUnvisited(currLoc, visited);
         capacities[i] += demandOfCustomer[nextLoc];
         if(capacities[i] >= vehicleCapacity){
-          filled.add(numberDispatched);
+          filled.add(i);
         }
-        routes.get(i).add(nextLoc);
+        routes.get(i).getLast().setEnd(nextLoc);
+        routes.get(i).add(new Edge(nextLoc));
         visited.add(nextLoc);
         flag = 0;
         if(visited.size() == numCustomers){
@@ -141,13 +416,27 @@ public class VRPInstance
       }
     }
     for(int i = 0; i < numberDispatched; i++){
-      routes.get(i).add(0);
-    }
-    for(int i = 0; i < numberDispatched; i++){
-      for(int e : routes.get(i)){
-        System.out.print(e + " ");
-      }
-      System.out.println();
+      routes.get(i).getLast().setEnd(0);
     }
   }
+
+
+
+  public void print_routes(){
+    for(int i = 0; i < numVehicles; i++){
+          for(Edge e : routes.get(i)){
+            System.out.print(e.start + " ");
+          }
+          System.out.println(0);
+        }
+  }
+
+
+  public void print_capacities(){
+    for(Integer e : capacities){
+      System.out.print(e + " ");
+    }
+    System.out.println();
+  }
+
 }
