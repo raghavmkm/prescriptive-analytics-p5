@@ -2,7 +2,8 @@ package solver.ls;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.*;
 
 public class VRPInstance
@@ -23,10 +24,11 @@ public class VRPInstance
   double currCost;
   int[] capacities;
   LinkedList<Edge> edgeList;
-
+  String NameOfFile;
 
   public VRPInstance(String fileName)
   {
+    NameOfFile = fileName;
     Scanner read = null;
     try
     {
@@ -63,12 +65,13 @@ public class VRPInstance
     init_greedy_solution();
     // print_routes();;
     // print_capacities();
-    System.out.println(get_cost());
+    //System.out.println(get_cost());
     simulatedAnnealing();
-    checkSolution();
-    print_best_routes();
+    // checkSolution();
+    // print_best_routes();
     // print_capacities();
-    System.out.println(bestCost);
+    // System.out.println(bestCost);
+    // createSolutionFile();
   }
 
   public double get_cost(){
@@ -105,7 +108,7 @@ public class VRPInstance
     double temperature = currCost;
     int iteration = 0;
     //termination condition is number of iterations
-    while(iteration < 1024000){
+    while(iteration < 4096000){
       int[] neighbor = getNeighbour();
       ArrayList<LinkedList<Edge>> neighborRoute = new ArrayList<>();
       for(int i = 0; i < numVehicles; i++){
@@ -197,7 +200,7 @@ public class VRPInstance
         bestRoute = routes;
         bestCost = currCost;
       }
-      if(iteration % 128 == 0){
+      if(iteration % 512 == 0){
         temperature = temperature * 0.99;
       }
       iteration++;
@@ -517,5 +520,25 @@ public class VRPInstance
       output += 0;
     }
     return output;
+  }
+
+  public void createSolutionFile(){
+    
+    File file = new File("output/" + "sol_" + NameOfFile.substring(6));
+    try{
+      FileWriter writer = new FileWriter(file);
+      writer.write(bestCost + " " + 0 + "\n");
+      for(int i = 0; i < numVehicles; i++){
+        for(Edge e : bestRoute.get(i)){
+          writer.write(e.start + " ");
+        }
+        writer.write(0 + "\n");
+      }
+      writer.close();
+    }
+    catch (IOException e){
+      System.out.println("Write has failed!");
+      e.printStackTrace();
+    }
   }
 }
