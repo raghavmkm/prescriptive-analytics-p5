@@ -28,7 +28,7 @@ public class Main
 
 	System.out.println("{\"Instance\": \"" + filename +
 			"\", \"Time\": " + String.format("%.2f",watch.getTime()) +
-			", \"Result\": \"--\"" +
-			", \"Solution\": \"--\"}");
+			", \"Result\": \"" + instance.bestCost + "\"" +
+			", \"Solution\": \"" + instance.getBestSolutionString() + "\"}");
   }
 }

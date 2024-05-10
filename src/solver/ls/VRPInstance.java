@@ -65,9 +65,10 @@ public class VRPInstance
     // print_capacities();
     System.out.println(get_cost());
     simulatedAnnealing();
-    // print_routes();;
+    checkSolution();
+    print_best_routes();
     // print_capacities();
-    System.out.println(get_cost());
+    System.out.println(bestCost);
   }
 
   public double get_cost(){
@@ -104,7 +105,7 @@ public class VRPInstance
     double temperature = currCost;
     int iteration = 0;
     //termination condition is number of iterations
-    while(iteration < 6400){
+    while(iteration < 1024000){
       int[] neighbor = getNeighbour();
       ArrayList<LinkedList<Edge>> neighborRoute = new ArrayList<>();
       for(int i = 0; i < numVehicles; i++){
@@ -196,7 +197,7 @@ public class VRPInstance
         bestRoute = routes;
         bestCost = currCost;
       }
-      if(iteration % 8 == 0){
+      if(iteration % 128 == 0){
         temperature = temperature * 0.99;
       }
       iteration++;
@@ -421,10 +422,75 @@ public class VRPInstance
   }
 
 
+  public void checkSolution(){
+    for(int i = 0; i < numVehicles; i++){
+      int totalCapacity = 0;
+      for(Edge e : bestRoute.get(i)){
+        totalCapacity += demandOfCustomer[e.start];
+      }
+      if(totalCapacity > vehicleCapacity){
+        System.out.println("FAILS CHECK 1");
+        return;
+      }
+    }
+    HashSet<Integer> customersCaptured = new HashSet<>();
+    customersCaptured.add(0);
+    for(int i = 0; i < numVehicles; i++){
+      for(Edge e : bestRoute.get(i)){
+        if(e.start == 0){
+          continue;
+        }
+        else{
+          if(customersCaptured.contains(e.start)){
+            System.out.println("FAILS CHECK 2");
+            return;
+          }
+          else{
+            customersCaptured.add(e.start);
+          }
+        }
+      }
+    }
+    if(customersCaptured.size() != numCustomers){
+      System.out.println("FAILS CHECK 3");
+      return;
+    }
+    for(int i = 0; i < numVehicles; i++){
+      if(bestRoute.get(i).getFirst().start != 0 || bestRoute.get(i).getLast().end != 0){
+        System.out.println("FAILS CHECK 4");
+        return;
+      }
+      int zeroCount = 0;
+      for(Edge e : bestRoute.get(i)){
+        if(e.start == 0){
+          zeroCount += 1;
+        }
+        if(e.end == 0){
+          zeroCount += 1;
+        }
+      }
+      if(zeroCount != 2){
+        System.out.println("FAILS CHECK 5");
+        return;
+      }
+    }
+    System.out.println("PASSES CHECKER!");
+  }
+
+
 
   public void print_routes(){
     for(int i = 0; i < numVehicles; i++){
           for(Edge e : routes.get(i)){
+            System.out.print(e.start + " ");
+          }
+          System.out.println(0);
+        }
+  }
+
+  public void print_best_routes(){
+    for(int i = 0; i < numVehicles; i++){
+          for(Edge e : bestRoute.get(i)){
             System.out.print(e.start + " ");
           }
           System.out.println(0);
@@ -439,4 +505,17 @@ public class VRPInstance
     System.out.println();
   }
 
+  public String getBestSolutionString(){
+    String output = "";
+    output += "0";
+    for(int i = 0; i < numVehicles; i++){
+      for(Edge e : bestRoute.get(i)){
+        output += " ";
+        output += e.start; 
+      }
+      output += " ";
+      output += 0;
+    }
+    return output;
+  }
 }
